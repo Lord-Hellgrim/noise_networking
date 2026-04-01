@@ -142,14 +142,18 @@ main :: proc() {
     }
 
     when ODIN_OS == .Linux {
+        fmt.println("Starting...")
         server_address, parsed := net.parse_endpoint("127.0.0.1:5000")
+        fmt.println("Parsed endpoint...")
         if !parsed {
             panic("PARSING WRONG!!")
         }
         listener, listen_err := net.listen_tcp(server_address)
+        fmt.println("Opened listener...")
         socket, source, status := net.accept_tcp(listener)
 
         connection, connection_status := establish_connection(socket, source)
+        fmt.println("Established connection...")
 
         if connection_status == .ok {
             fmt.println("SUCCESS!!")
