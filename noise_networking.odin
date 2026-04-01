@@ -85,12 +85,12 @@ establish_connection :: proc(socket: net.TCP_Socket, peer: net.Endpoint, protoco
             return {}, .recv_error
         }
         cipherstates, output_message, handshake_status = noise.responder_step(&handshakestate, input_message, nil)
+        if handshake_status == .Handshake_Complete {
+            break
+        }
         send_status := send_length_prefixed(socket, output_message)
         if send_status != .ok {
             return {}, send_status
-        }
-        if handshake_status == .Handshake_Complete {
-            break
         }
     }
 
