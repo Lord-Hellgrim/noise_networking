@@ -76,6 +76,10 @@ establish_connection :: proc(socket: net.TCP_Socket, peer: net.Endpoint, protoco
     input_message : []u8
     output_message : []u8
     for handshake_status != .Handshake_Complete {
+        input_message, recv_error = read_length_prefixed(socket)
+        if recv_error != .None {
+            return {}, .recv_error
+        }
         cipherstates, output_message, handshake_status = noise.responder_step(&handshakestate, input_message, nil)
         send_status := send_length_prefixed(socket, output_message)
         if send_status != .ok {
@@ -83,10 +87,6 @@ establish_connection :: proc(socket: net.TCP_Socket, peer: net.Endpoint, protoco
         }
         if handshake_status == .Handshake_Complete {
             break
-        }
-        input_message, recv_error = read_length_prefixed(socket)
-        if recv_error != .None {
-            return {}, .recv_error
         }
     }
 
