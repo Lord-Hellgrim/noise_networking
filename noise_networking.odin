@@ -77,6 +77,7 @@ establish_connection :: proc(socket: net.TCP_Socket, peer: net.Endpoint, protoco
     output_message : []u8
     for handshake_status != .Handshake_Complete {
         input_message, recv_error = read_length_prefixed(socket)
+        fmt.println("message received")
         if recv_error != .None {
             return {}, .recv_error
         }
