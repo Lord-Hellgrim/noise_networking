@@ -41,7 +41,7 @@ initiate_connection :: proc(endpoint: net.Endpoint, protocol := noise.DEFAULT_PR
     output_message : []u8
     recv_error : net.TCP_Recv_Error
     for handshake_status != .Handshake_Complete {
-        cipherstates, output_message, handshake_status = noise.initiator_step(&handshakestate, nil, nil, context.temp_allocator)
+        cipherstates, output_message, handshake_status = noise.initiator_step(&handshakestate, input_message, nil)
         send_status := send_length_prefixed(socket, output_message)
         if send_status != .ok {
             return {}, send_status
@@ -50,7 +50,7 @@ initiate_connection :: proc(endpoint: net.Endpoint, protocol := noise.DEFAULT_PR
             break
         }
         input_message, recv_error = read_length_prefixed(socket)
-        fmt.println(input_message)
+        fmt.println("input_message: ", input_message)
         if recv_error != .None {
             return {}, .recv_error
         }
