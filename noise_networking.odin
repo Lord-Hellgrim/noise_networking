@@ -14,14 +14,15 @@ Connection :: struct {
 
 ConnectionStatus :: enum {
     ok,
+    handshake_pending,
+    handshake_complete,
     dial_error,
     send_error,
     recv_error,
     handshakestate_initialization_error,
 }
 
-initiate_connection :: proc(endpoint: net.Endpoint, protocol := noise.DEFAULT_PROTOCOL, options := net.DEFAULT_TCP_OPTIONS) -> (Connection, ConnectionStatus) {
-
+initiate_connection_all_the_way :: proc(endpoint: net.Endpoint, protocol := noise.DEFAULT_PROTOCOL, options := net.DEFAULT_TCP_OPTIONS) -> (Connection, ConnectionStatus) {
     connection : Connection
 
     socket, dial_error := net.dial_tcp(endpoint, options = options)
@@ -62,7 +63,7 @@ initiate_connection :: proc(endpoint: net.Endpoint, protocol := noise.DEFAULT_PR
     return connection, .ok
 }
 
-establish_connection :: proc(socket: net.TCP_Socket, peer: net.Endpoint, protocol := noise.DEFAULT_PROTOCOL) -> (Connection, ConnectionStatus) {
+establish_connection_all_the_way :: proc(socket: net.TCP_Socket, peer: net.Endpoint, protocol := noise.DEFAULT_PROTOCOL) -> (Connection, ConnectionStatus) {
     connection : Connection
     
     handshakestate, ini_status := noise.handshakestate_initialize(false, nil, nil, nil, nil, nil)
@@ -99,6 +100,61 @@ establish_connection :: proc(socket: net.TCP_Socket, peer: net.Endpoint, protoco
     connection.peer = peer
 
     return connection, .ok
+}
+
+initiate_connection_step :: proc(handshakestate: ^noise.HandshakeState, socket: net.TCP_Socket, peer: net.Endpoint) -> (Connection, ConnectionStatus) {
+    connection : Connection
+
+    input_message : []u8
+    recv_error : net.TCP_Recv_Error
+    if handshakestate.current_pattern != 0 {
+        input_message, recv_error := read_length_prefixed(socket)
+        if recv_error != .None {
+            return {}, .recv_error
+        }
+    }
+
+    cipherstates, output_message, handshake_status := noise.initiator_step(handshakestate, input_message, nil)
+    send_status := send_length_prefixed(socket, output_message)
+    if send_status != .ok {
+        return {}, send_status
+    }
+
+    if handshake_status == .Handshake_Complete {
+        connection.socket = socket
+        connection.cipherstates = cipherstates
+        connection.peer = peer
+        return connection, .handshake_complete
+    } else {
+        return {}, .handshake_pending
+    }
+}
+
+establish_connection_step :: proc(handshakestate: ^noise.HandshakeState, socket: net.TCP_Socket, peer: net.Endpoint) -> (Connection, ConnectionStatus) {
+    connection : Connection
+    
+    input_message, recv_error := read_length_prefixed(socket)
+    if len(input_message) == 0 {
+        panic("nil message read")
+    }
+    fmt.println("message received")
+    if recv_error != .None {
+        return {}, .recv_error
+    }
+    cipherstates, output_message, handshake_status := noise.responder_step(handshakestate, input_message, nil)
+    if handshake_status == .Handshake_Complete {
+        connection.socket = socket
+        connection.cipherstates = cipherstates
+        connection.peer = peer
+
+        return connection, .handshake_complete
+    }
+    send_status := send_length_prefixed(socket, output_message)
+    if send_status != .ok {
+        return {}, send_status
+    } else {
+        return {}, .handshake_pending
+    }
 }
 
 send_data :: proc(data: []u8, connection: ^Connection) -> ConnectionStatus {
@@ -163,7 +219,7 @@ from_le_bytes :: proc(slice: []u8) -> int {
 main :: proc() {
     when ODIN_OS == .Windows {
         server_address, parsed := net.parse_endpoint("127.0.0.1:5000")
-        connection, status := initiate_connection(server_address)
+        connection, status := initiate_connection_all_the_way(server_address)
         if status == .ok {
             fmt.println("SUCCESS!!")
         }
@@ -184,7 +240,7 @@ main :: proc() {
         fmt.println("Opened listener...")
         socket, source, status := net.accept_tcp(listener)
 
-        connection, connection_status := establish_connection(socket, source)
+        connection, connection_status := establish_connection_all_the_way(socket, source)
         fmt.println("Established connection...")
 
         if connection_status == .ok {
