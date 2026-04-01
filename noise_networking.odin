@@ -50,6 +50,7 @@ initiate_connection :: proc(endpoint: net.Endpoint, protocol := noise.DEFAULT_PR
             break
         }
         input_message, recv_error = read_length_prefixed(socket)
+        fmt.println(input_message)
         if recv_error != .None {
             return {}, .recv_error
         }
