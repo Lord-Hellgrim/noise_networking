@@ -3,7 +3,6 @@ package noise_networking
 
 import "../noise"
 import "core:net"
-import "core:bytes"
 import "core:fmt"
 
 
@@ -102,6 +101,30 @@ establish_connection :: proc(socket: net.TCP_Socket, peer: net.Endpoint, protoco
     return connection, .ok
 }
 
+send_data :: proc(data: []u8, connection: ^Connection) -> ConnectionStatus {
+    message, prepare_status := noise.prepare_message(&connection.cipherstates, data)
+
+    message_len := noise.to_le_bytes(u64(len(message.main_body))) + 16
+    bytes_written, send_status :=net.send_tcp(connection.socket, message_len[:])
+    bytes_written, send_status = net.send_tcp(connection.socket, message.main_body)
+    bytes_written, send_status = net.send_tcp(connection.socket, message.tag[:])
+    if send_status != .None {
+        return .send_error
+    }
+
+    return .ok
+}
+
+receive_data :: proc(connection : ^Connection) -> ([]u8, ConnectionStatus) {
+    data, status := read_length_prefixed(connection.socket)
+    message, noise_status := noise.open_message(&connection.cipherstates, noise.cryptobuffer_from_slice(data))
+    if noise_status != .Ok {
+        return nil, .recv_error
+    }
+
+    return message, .ok
+}
+
 send_length_prefixed :: proc(socket: net.TCP_Socket, message: []u8) -> ConnectionStatus {
 
     message_len := noise.to_le_bytes(u64(len(message)))
@@ -144,6 +167,10 @@ main :: proc() {
         if status == .ok {
             fmt.println("SUCCESS!!")
         }
+
+        test_data :[10]u8 = {1,2,3,4,5,6,7,8,9,10}
+        send_status := send_data(test_data[:], &connection)
+        fmt.println("Send status: ", send_status)
     }
 
     when ODIN_OS == .Linux {
@@ -163,5 +190,8 @@ main :: proc() {
         if connection_status == .ok {
             fmt.println("SUCCESS!!")
         }
+        data, recv_status := receive_data(&connection)
+        fmt.println("Recv status: ", recv_status)
+        fmt.println(data)
     }
 }
