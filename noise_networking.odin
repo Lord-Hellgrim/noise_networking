@@ -249,6 +249,10 @@ main :: proc() {
             connection, connection_status = establish_connection_step(&hs, socket, server_address)
         }
 
+        data, recv_status := receive_data(&connection)
+        fmt.println("Recv status: ", recv_status)
+        fmt.println(data)
+
         fmt.println("SUCCESS!!")
 
         // connection, connection_status := establish_connection_all_the_way(socket, source)
