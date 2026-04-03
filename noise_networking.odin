@@ -241,7 +241,7 @@ main :: proc() {
         fmt.println("Opened listener...")
         socket, source, status := net.accept_tcp(listener)
 
-        hs := noise.handshakestate_initialize(false, nil, nil, nil, nil, nil)
+        hs, hs_status := noise.handshakestate_initialize(false, nil, nil, nil, nil, nil)
 
         connection_status : ConnectionStatus = .handshake_pending
         connection : Connection
