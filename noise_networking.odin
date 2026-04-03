@@ -115,10 +115,6 @@ initiate_connection_step :: proc(handshakestate: ^noise.HandshakeState, socket: 
     }
 
     cipherstates, output_message, handshake_status := noise.initiator_step(handshakestate, input_message, nil)
-    send_status := send_length_prefixed(socket, output_message)
-    if send_status != .ok {
-        return {}, send_status
-    }
 
     if handshake_status == .Handshake_Complete {
         connection.socket = socket
@@ -126,7 +122,12 @@ initiate_connection_step :: proc(handshakestate: ^noise.HandshakeState, socket: 
         connection.peer = peer
         return connection, .handshake_complete
     } else {
-        return {}, .handshake_pending
+        send_status := send_length_prefixed(socket, output_message)
+        if send_status != .ok {
+            return {}, send_status
+        } else {
+            return {}, .handshake_pending
+        }
     }
 }
 
@@ -219,14 +220,14 @@ from_le_bytes :: proc(slice: []u8) -> int {
 main :: proc() {
     when ODIN_OS == .Windows {
         server_address, parsed := net.parse_endpoint("127.0.0.1:5000")
-        connection, status := initiate_connection_all_the_way(server_address)
-        if status == .ok {
-            fmt.println("SUCCESS!!")
-        }
+        // connection, status := initiate_connection_all_the_way(server_address)
+        // if status == .ok {
+        //     fmt.println("SUCCESS!!")
+        // }
 
-        test_data :[10]u8 = {1,2,3,4,5,6,7,8,9,10}
-        send_status := send_data(test_data[:], &connection)
-        fmt.println("Send status: ", send_status)
+        // test_data :[10]u8 = {1,2,3,4,5,6,7,8,9,10}
+        // send_status := send_data(test_data[:], &connection)
+        // fmt.println("Send status: ", send_status)
     }
 
     when ODIN_OS == .Linux {
@@ -240,14 +241,24 @@ main :: proc() {
         fmt.println("Opened listener...")
         socket, source, status := net.accept_tcp(listener)
 
-        connection, connection_status := establish_connection_all_the_way(socket, source)
-        fmt.println("Established connection...")
+        hs := noise.handshakestate_initialize(false, nil, nil, nil, nil, nil)
 
-        if connection_status == .ok {
-            fmt.println("SUCCESS!!")
+        connection_status : ConnectionStatus = .handshake_pending
+        connection : Connection
+        for connection_status != .handshake_complete {
+            connection, connection_status = establish_connection_step(&hs, socket, server_address)
         }
-        data, recv_status := receive_data(&connection)
-        fmt.println("Recv status: ", recv_status)
-        fmt.println(data)
+
+        fm.println("SUCCESS!!")
+
+        // connection, connection_status := establish_connection_all_the_way(socket, source)
+        // fmt.println("Established connection...")
+
+        // if connection_status == .ok {
+        //     fmt.println("SUCCESS!!")
+        // }
+        // data, recv_status := receive_data(&connection)
+        // fmt.println("Recv status: ", recv_status)
+        // fmt.println(data)
     }
 }
