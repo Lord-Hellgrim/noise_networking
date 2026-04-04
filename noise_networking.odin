@@ -252,24 +252,21 @@ main :: proc() {
         connection : Connection
         for  {
             connection, connection_status = establish_connection_step(&hs, socket, server_address)
-            #partial switch connection_status {
-                case .handshake_pending: {
-                    continue
-                }
-                case .handshake_complete: {
-                    data, nonce, recv_status := receive_data(&connection)
-                    fmt.println("Recv status: ", recv_status)
-                    fmt.println("NONCE: ", nonce)
-                    fmt.println(data)
-            
-                    fmt.println("SUCCESS!!")
-                    break
-                }
-                case: {
-                    fmt.println(connection_status)
-                    break
-                }
+            if connection_status == .handshake_pending {
+                continue
+            } else if connection_status == .handshake_complete {
+                data, nonce, recv_status := receive_data(&connection)
+                fmt.println("Recv status: ", recv_status)
+                fmt.println("NONCE: ", nonce)
+                fmt.println(data)
+        
+                fmt.println("SUCCESS!!")
+                break
+            } else {
+                fmt.println(connection_status)
+                break
             }
+        
         }
 
 
