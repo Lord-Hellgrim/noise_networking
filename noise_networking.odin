@@ -16,6 +16,7 @@ ConnectionStatus :: enum {
     ok,
     handshake_pending,
     handshake_complete,
+    nil_message_read,
     dial_error,
     send_error,
     recv_error,
@@ -136,7 +137,7 @@ establish_connection_step :: proc(handshakestate: ^noise.HandshakeState, socket:
     
     input_message, recv_error := read_length_prefixed(socket)
     if len(input_message) == 0 {
-        panic("nil message read")
+        return {},.nil_message_read
     }
     fmt.println("message received")
     if recv_error != .None {
@@ -159,10 +160,13 @@ establish_connection_step :: proc(handshakestate: ^noise.HandshakeState, socket:
 }
 
 send_data :: proc(data: []u8, connection: ^Connection) -> ConnectionStatus {
-    message, prepare_status := noise.prepare_message(&connection.cipherstates, data)
+    message, nonce, prepare_status := noise.prepare_message(&connection.cipherstates, data)
 
-    message_len := noise.to_le_bytes(u64(len(message.main_body))) + 16
+    message_len := noise.to_le_bytes(u64(len(message.main_body))) + 24
+    nonce_bytes := noise.to_le_bytes(nonce)
+
     bytes_written, send_status :=net.send_tcp(connection.socket, message_len[:])
+    bytes_written, send_status = net.send_tcp(connection.socket, nonce_bytes[:])
     bytes_written, send_status = net.send_tcp(connection.socket, message.main_body)
     bytes_written, send_status = net.send_tcp(connection.socket, message.tag[:])
     if send_status != .None {
@@ -172,14 +176,15 @@ send_data :: proc(data: []u8, connection: ^Connection) -> ConnectionStatus {
     return .ok
 }
 
-receive_data :: proc(connection : ^Connection) -> ([]u8, ConnectionStatus) {
+receive_data :: proc(connection : ^Connection) -> ([]u8, u64, ConnectionStatus) {
     data, status := read_length_prefixed(connection.socket)
-    message, noise_status := noise.open_message(&connection.cipherstates, noise.cryptobuffer_from_slice(data))
+    cryptobuffer := noise.cryptobuffer_from_slice(data)
+    message, nonce, noise_status := noise.open_message(&connection.cipherstates, cryptobuffer)
     if noise_status != .Ok {
-        return nil, .recv_error
+        return nil, nonce, .recv_error
     }
 
-    return message, .ok
+    return message, nonce, .ok
 }
 
 send_length_prefixed :: proc(socket: net.TCP_Socket, message: []u8) -> ConnectionStatus {
