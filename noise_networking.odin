@@ -223,19 +223,19 @@ from_le_bytes :: proc(slice: []u8) -> int {
 }
 
 main :: proc() {
-    // when ODIN_OS == .Windows {
-    //     server_address, parsed := net.parse_endpoint("127.0.0.1:5000")
-    //     connection, status := initiate_connection_all_the_way(server_address)
-    //     if status == .ok {
-    //         fmt.println("SUCCESS!!")
-    //     }
-
-    //     test_data :[10]u8 = {1,2,3,4,5,6,7,8,9,10}
-    //     send_status := send_data(test_data[:], &connection)
-    //     fmt.println("Send status: ", send_status)
-    // }
-
     when ODIN_OS == .Windows {
+        server_address, parsed := net.parse_endpoint("127.0.0.1:5000")
+        connection, status := initiate_connection_all_the_way(server_address)
+        if status == .ok {
+            fmt.println("SUCCESS!!")
+        }
+
+        test_data :[10]u8 = {1,2,3,4,5,6,7,8,9,10}
+        send_status := send_data(test_data[:], &connection)
+        fmt.println("Send status: ", send_status)
+    }
+
+    when ODIN_OS == .Linux {
         fmt.println("Starting...")
         server_address, parsed := net.parse_endpoint("127.0.0.1:5000")
         fmt.println("Parsed endpoint...")
