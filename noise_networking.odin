@@ -254,8 +254,9 @@ main :: proc() {
             connection, connection_status = establish_connection_step(&hs, socket, server_address)
         }
 
-        data, recv_status := receive_data(&connection)
+        data, nonce, recv_status := receive_data(&connection)
         fmt.println("Recv status: ", recv_status)
+        fmt.println("NONCE: ", nonce)
         fmt.println(data)
 
         fmt.println("SUCCESS!!")
