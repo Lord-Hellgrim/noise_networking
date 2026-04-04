@@ -160,8 +160,8 @@ establish_connection_step :: proc(handshakestate: ^noise.HandshakeState, socket:
 }
 
 send_data :: proc(data: []u8, connection: ^Connection) -> ConnectionStatus {
-    message, prepare_status := noise.prepare_message(&connection.cipherstates, data)
-
+    
+    message, nonce, prepare_status := noise.prepare_message(&connection.cipherstates, data)
     message_len := noise.to_le_bytes(u64(len(message.main_body))) + 24
     nonce_bytes := noise.to_le_bytes(nonce)
 
