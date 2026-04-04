@@ -223,19 +223,19 @@ from_le_bytes :: proc(slice: []u8) -> int {
 }
 
 main :: proc() {
+    // when ODIN_OS == .Windows {
+    //     server_address, parsed := net.parse_endpoint("127.0.0.1:5000")
+    //     connection, status := initiate_connection_all_the_way(server_address)
+    //     if status == .ok {
+    //         fmt.println("SUCCESS!!")
+    //     }
+
+    //     test_data :[10]u8 = {1,2,3,4,5,6,7,8,9,10}
+    //     send_status := send_data(test_data[:], &connection)
+    //     fmt.println("Send status: ", send_status)
+    // }
+
     when ODIN_OS == .Windows {
-        server_address, parsed := net.parse_endpoint("127.0.0.1:5000")
-        connection, status := initiate_connection_all_the_way(server_address)
-        if status == .ok {
-            fmt.println("SUCCESS!!")
-        }
-
-        test_data :[10]u8 = {1,2,3,4,5,6,7,8,9,10}
-        send_status := send_data(test_data[:], &connection)
-        fmt.println("Send status: ", send_status)
-    }
-
-    when ODIN_OS == .Linux {
         fmt.println("Starting...")
         server_address, parsed := net.parse_endpoint("127.0.0.1:5000")
         fmt.println("Parsed endpoint...")
@@ -250,16 +250,28 @@ main :: proc() {
 
         connection_status : ConnectionStatus = .handshake_pending
         connection : Connection
-        for connection_status != .handshake_complete {
+        for  {
             connection, connection_status = establish_connection_step(&hs, socket, server_address)
+            #partial switch connection_status {
+                case .handshake_pending: {
+                    continue
+                }
+                case .handshake_complete: {
+                    data, nonce, recv_status := receive_data(&connection)
+                    fmt.println("Recv status: ", recv_status)
+                    fmt.println("NONCE: ", nonce)
+                    fmt.println(data)
+            
+                    fmt.println("SUCCESS!!")
+                    break
+                }
+                case: {
+                    fmt.println(connection_status)
+                    break
+                }
+            }
         }
 
-        data, nonce, recv_status := receive_data(&connection)
-        fmt.println("Recv status: ", recv_status)
-        fmt.println("NONCE: ", nonce)
-        fmt.println(data)
-
-        fmt.println("SUCCESS!!")
 
         // connection, connection_status := establish_connection_all_the_way(socket, source)
         // fmt.println("Established connection...")
