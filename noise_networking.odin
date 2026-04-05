@@ -159,9 +159,9 @@ establish_connection_step :: proc(handshakestate: ^noise.HandshakeState, socket:
     }
 }
 
-send_data :: proc(data: []u8, connection: ^Connection) -> ConnectionStatus {
+send_data :: proc(connection: ^Connection, data: []u8, ad: []u8 = nil) -> ConnectionStatus {
     
-    message, nonce, prepare_status := noise.prepare_message(&connection.cipherstates, data)
+    message, nonce, prepare_status := noise.prepare_message(&connection.cipherstates, data, ad)
     message_len := noise.to_le_bytes(u64(len(message.main_body))) + 24
     nonce_bytes := noise.to_le_bytes(nonce)
 
@@ -176,12 +176,12 @@ send_data :: proc(data: []u8, connection: ^Connection) -> ConnectionStatus {
     return .ok
 }
 
-receive_data :: proc(connection : ^Connection) -> ([]u8, u64, ConnectionStatus) {
+receive_data :: proc(connection : ^Connection, ad: []u8 = nil) -> ([]u8, u64, ConnectionStatus) {
     data, status := read_length_prefixed(connection.socket)
     nonce := u64(from_le_bytes(data[:8]))
     data = data[8:]
     cryptobuffer := noise.cryptobuffer_from_slice(data)
-    message, noise_status := noise.open_message(&connection.cipherstates, cryptobuffer)
+    message, noise_status := noise.open_message(&connection.cipherstates, cryptobuffer, ad)
     if noise_status != .Ok {
         return nil, nonce, .recv_error
     }
@@ -233,7 +233,7 @@ main :: proc() {
         }
 
         test_data :[10]u8 = {1,2,3,4,5,6,7,8,9,10}
-        send_status := send_data(test_data[:], &connection)
+        send_status := send_data(&connection, test_data[:])
         fmt.println("Send status: ", send_status)
     }
 
