@@ -190,7 +190,6 @@ receive_data :: proc(connection : ^Connection, ad: []u8 = nil) -> ([]u8, u64, Co
 }
 
 send_length_prefixed :: proc(socket: net.TCP_Socket, message: []u8) -> ConnectionStatus {
-
     message_len := noise.to_le_bytes(u64(len(message)))
     bytes_written, send_status :=net.send_tcp(socket, message_len[:])
     bytes_written, send_status = net.send_tcp(socket, message)
