@@ -191,8 +191,9 @@ send_data :: proc(connection: ^Connection, data: []u8, ad: []u8 = nil, allocator
     endian.put_u64(nonce_bytes[:], .Little, nonce)
     message_len_bytes : [8]u8
     endian.put_u64(message_len_bytes[:], .Little, message_len)
+    fmt.println(message_len_bytes)
 
-    bytes_written, send_status :=net.send_tcp(connection.socket, message_len_bytes[:])
+    bytes_written, send_status := net.send_tcp(connection.socket, message_len_bytes[:])
     bytes_written, send_status = net.send_tcp(connection.socket, nonce_bytes[:])
     bytes_written, send_status = net.send_tcp(connection.socket, message)
     if send_status != .None {
@@ -226,9 +227,11 @@ send_length_prefixed :: proc(socket: net.TCP_Socket, message: []u8) -> Connectio
     return .ok
 }
 
+// Strips the length prefix from the data packet
 read_length_prefixed :: proc(socket: net.TCP_Socket, allocator := context.allocator) -> ([]u8, net.TCP_Recv_Error) {
     length : [8]u8
     bytes_received, status := net.recv_tcp(socket, length[:])
+    fmt.println(bytes_received)
     if status != .None {
         panic("AAAAAAA")
     }
