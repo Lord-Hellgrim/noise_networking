@@ -1,15 +1,16 @@
 package noise_networking
 
 
-import "../noise"
+import "core:crypto/noise"
 import "core:net"
 import "core:fmt"
+import "core:encoding/endian"
 
 
 Connection :: struct {
     peer: net.Endpoint,
     socket: net.TCP_Socket,
-    cipherstates: noise.CipherStates,
+    cipherstates: noise.Cipher_States,
 }
 
 ConnectionStatus :: enum {
@@ -23,7 +24,9 @@ ConnectionStatus :: enum {
     handshakestate_initialization_error,
 }
 
-initiate_connection_all_the_way :: proc(endpoint: net.Endpoint, protocol := noise.DEFAULT_PROTOCOL, options := net.DEFAULT_TCP_OPTIONS) -> (Connection, ConnectionStatus) {
+DEFAULT_PROTOCOL_NAME :: "Noise_XX_25519_AESGCM_SHA256"
+
+initiate_connection_all_the_way :: proc(endpoint: net.Endpoint, protocol := DEFAULT_PROTOCOL_NAME, options := net.DEFAULT_TCP_OPTIONS) -> (Connection, ConnectionStatus) {
     connection : Connection
 
     socket, dial_error := net.dial_tcp(endpoint, options = options)
@@ -31,18 +34,21 @@ initiate_connection_all_the_way :: proc(endpoint: net.Endpoint, protocol := nois
         return {}, .dial_error
     }
 
-    handshakestate, ini_status := noise.handshakestate_initialize(true, nil, nil, nil, nil, nil)
+    handshakestate : noise.Handshake_State
+    ini_status := noise.handshake_init(&handshakestate, true, nil, nil, nil, protocol)
     if ini_status != .Ok {
         return {}, .handshakestate_initialization_error
     }
 
-    handshake_status : noise.NoiseStatus
+    handshake_status : noise.Status
     input_message : []u8
-    cipherstates : noise.CipherStates
+    cipherstates : noise.Cipher_States
     output_message : []u8
+    message_to: []u8
+    message_from: []u8
     recv_error : net.TCP_Recv_Error
     for handshake_status != .Handshake_Complete {
-        cipherstates, output_message, handshake_status = noise.initiator_step(&handshakestate, input_message, nil)
+        message_to, message_from, handshake_status = noise.handshake_initiator_step(&handshakestate, input_message)
         send_status := send_length_prefixed(socket, output_message)
         if send_status != .ok {
             return {}, send_status
@@ -64,19 +70,21 @@ initiate_connection_all_the_way :: proc(endpoint: net.Endpoint, protocol := nois
     return connection, .ok
 }
 
-establish_connection_all_the_way :: proc(socket: net.TCP_Socket, peer: net.Endpoint, protocol := noise.DEFAULT_PROTOCOL) -> (Connection, ConnectionStatus) {
+establish_connection_all_the_way :: proc(socket: net.TCP_Socket, peer: net.Endpoint, protocol := DEFAULT_PROTOCOL_NAME) -> (Connection, ConnectionStatus) {
     connection : Connection
     
-    handshakestate, ini_status := noise.handshakestate_initialize(false, nil, nil, nil, nil, nil)
+    handshakestate : noise.Handshake_State
+    ini_status := noise.handshake_init(&handshakestate, false, nil, nil, nil, protocol)
     if ini_status != .Ok {
         return {}, .handshakestate_initialization_error
     }
 
-    handshake_status : noise.NoiseStatus
+    handshake_status : noise.Status
     recv_error : net.TCP_Recv_Error
-    cipherstates : noise.CipherStates
+    cipherstates : noise.Cipher_States
     input_message : []u8
-    output_message : []u8
+    message_to : []u8
+    message_from : []u8
     for handshake_status != .Handshake_Complete {
         input_message, recv_error = read_length_prefixed(socket)
         if len(input_message) == 0 {
@@ -86,13 +94,13 @@ establish_connection_all_the_way :: proc(socket: net.TCP_Socket, peer: net.Endpo
         if recv_error != .None {
             return {}, .recv_error
         }
-        cipherstates, output_message, handshake_status = noise.responder_step(&handshakestate, input_message, nil)
-        if handshake_status == .Handshake_Complete {
-            break
-        }
-        send_status := send_length_prefixed(socket, output_message)
+        message_to, message_from, handshake_status = noise.handshake_responder_step(&handshakestate, input_message)
+        send_status := send_length_prefixed(socket, message_to)
         if send_status != .ok {
             return {}, send_status
+        }
+        if handshake_status == .Handshake_Complete {
+            break
         }
     }
 
@@ -103,27 +111,31 @@ establish_connection_all_the_way :: proc(socket: net.TCP_Socket, peer: net.Endpo
     return connection, .ok
 }
 
-initiate_connection_step :: proc(handshakestate: ^noise.HandshakeState, socket: net.TCP_Socket, peer: net.Endpoint) -> (Connection, ConnectionStatus) {
+initiate_connection_step :: proc(handshakestate: ^noise.Handshake_State, socket: net.TCP_Socket, peer: net.Endpoint) -> (Connection, ConnectionStatus) {
     connection : Connection
 
     input_message : []u8
     recv_error : net.TCP_Recv_Error
-    if handshakestate.current_pattern != 0 {
+    if handshakestate.current_message != 0 {
         input_message, recv_error := read_length_prefixed(socket)
         if recv_error != .None {
             return {}, .recv_error
         }
     }
 
-    cipherstates, output_message, handshake_status := noise.initiator_step(handshakestate, input_message, nil)
+    message_from, message_to, handshake_status := noise.handshake_initiator_step(handshakestate, input_message)
 
+    cipherstates : noise.Cipher_States
     if handshake_status == .Handshake_Complete {
         connection.socket = socket
-        connection.cipherstates = cipherstates
+        split_status := noise.handshake_split(handshakestate, &cipherstates)
+        if split_status == .Ok {
+            connection.cipherstates = cipherstates
+        }
         connection.peer = peer
         return connection, .handshake_complete
     } else {
-        send_status := send_length_prefixed(socket, output_message)
+        send_status := send_length_prefixed(socket, message_to)
         if send_status != .ok {
             return {}, send_status
         } else {
@@ -132,7 +144,7 @@ initiate_connection_step :: proc(handshakestate: ^noise.HandshakeState, socket: 
     }
 }
 
-establish_connection_step :: proc(handshakestate: ^noise.HandshakeState, socket: net.TCP_Socket, peer: net.Endpoint) -> (Connection, ConnectionStatus) {
+establish_connection_step :: proc(handshakestate: ^noise.Handshake_State, socket: net.TCP_Socket, peer: net.Endpoint) -> (Connection, ConnectionStatus) {
     connection : Connection
     
     input_message, recv_error := read_length_prefixed(socket)
@@ -143,15 +155,21 @@ establish_connection_step :: proc(handshakestate: ^noise.HandshakeState, socket:
     if recv_error != .None {
         return {}, .recv_error
     }
-    cipherstates, output_message, handshake_status := noise.responder_step(handshakestate, input_message, nil)
+    message_to, message_from, handshake_status := noise.handshake_responder_step(handshakestate, input_message)
     if handshake_status == .Handshake_Complete {
         connection.socket = socket
-        connection.cipherstates = cipherstates
+        cipherstates : noise.Cipher_States
+        split_status := noise.handshake_split(handshakestate, &cipherstates)
+        if split_status == .Ok {
+            connection.cipherstates = cipherstates
+        } else {
+            return {}, .handshakestate_initialization_error
+        }
         connection.peer = peer
 
         return connection, .handshake_complete
     }
-    send_status := send_length_prefixed(socket, output_message)
+    send_status := send_length_prefixed(socket, message_to)
     if send_status != .ok {
         return {}, send_status
     } else {
@@ -159,16 +177,24 @@ establish_connection_step :: proc(handshakestate: ^noise.HandshakeState, socket:
     }
 }
 
-send_data :: proc(connection: ^Connection, data: []u8, ad: []u8 = nil) -> ConnectionStatus {
+send_data :: proc(connection: ^Connection, data: []u8, ad: []u8 = nil, allocator := context.allocator) -> ConnectionStatus {
     
-    message, nonce, prepare_status := noise.prepare_message(&connection.cipherstates, data, ad)
-    message_len := noise.to_le_bytes(u64(len(message.main_body))) + 24
-    nonce_bytes := noise.to_le_bytes(nonce)
+    message, prepare_status := noise.seal_message(&connection.cipherstates, ad, data, allocator = allocator)
+    nonce : u64
+    if connection.cipherstates.initiator {
+        nonce = connection.cipherstates.c1_i_to_r.n - 1
+    } else {
+        nonce = connection.cipherstates.c2_r_to_i.n - 1
+    }
+    message_len := u64(len(message) + 8)
+    nonce_bytes : [8]u8
+    endian.put_u64(nonce_bytes[:], .Little, nonce)
+    message_len_bytes : [8]u8
+    endian.put_u64(message_len_bytes[:], .Little, message_len)
 
-    bytes_written, send_status :=net.send_tcp(connection.socket, message_len[:])
+    bytes_written, send_status :=net.send_tcp(connection.socket, message_len_bytes[:])
     bytes_written, send_status = net.send_tcp(connection.socket, nonce_bytes[:])
-    bytes_written, send_status = net.send_tcp(connection.socket, message.main_body)
-    bytes_written, send_status = net.send_tcp(connection.socket, message.tag[:])
+    bytes_written, send_status = net.send_tcp(connection.socket, message)
     if send_status != .None {
         return .send_error
     }
@@ -180,8 +206,7 @@ receive_data :: proc(connection : ^Connection, ad: []u8 = nil) -> ([]u8, u64, Co
     data, status := read_length_prefixed(connection.socket)
     nonce := u64(from_le_bytes(data[:8]))
     data = data[8:]
-    cryptobuffer := noise.cryptobuffer_from_slice(data)
-    message, noise_status := noise.open_message(&connection.cipherstates, cryptobuffer, ad)
+    message, noise_status := noise.open_message(&connection.cipherstates, ad, data)
     if noise_status != .Ok {
         return nil, nonce, .recv_error
     }
@@ -190,7 +215,8 @@ receive_data :: proc(connection : ^Connection, ad: []u8 = nil) -> ([]u8, u64, Co
 }
 
 send_length_prefixed :: proc(socket: net.TCP_Socket, message: []u8) -> ConnectionStatus {
-    message_len := noise.to_le_bytes(u64(len(message)))
+    message_len : [8]u8
+    endian.put_u64(message_len[:], .Little, u64(len(message)))
     bytes_written, send_status :=net.send_tcp(socket, message_len[:])
     bytes_written, send_status = net.send_tcp(socket, message)
     if send_status != .None {
@@ -206,12 +232,12 @@ read_length_prefixed :: proc(socket: net.TCP_Socket, allocator := context.alloca
     if status != .None {
         panic("AAAAAAA")
     }
-    len := from_le_bytes(length[:])
+    len, _ := endian.get_u64(length[:], .Little)
 
     result := make([]u8, len)
     bytes_received  = 0
     status = .None
-    for bytes_received < len || status != .None {
+    for u64(bytes_received) < len || status != .None {
         bytes_received, status = net.recv_tcp(socket, result[bytes_received:])
     }
 
