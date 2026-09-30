@@ -35,7 +35,7 @@ initiate_connection_all_the_way :: proc(endpoint: net.Endpoint, protocol := DEFA
     }
 
     handshakestate : noise.Handshake_State
-    ini_status := noise.handshake_init(&handshakestate, true, nil, nil, nil, protocol)
+    ini_status := noise.handshake_init(&handshakestate, true, nil, nil, nil, DEFAULT_PROTOCOL_NAME )
     if ini_status != .Ok {
         return {}, .handshakestate_initialization_error
     }
