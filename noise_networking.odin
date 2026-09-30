@@ -43,12 +43,11 @@ initiate_connection_all_the_way :: proc(endpoint: net.Endpoint, protocol := DEFA
     handshake_status : noise.Status
     input_message : []u8
     cipherstates : noise.Cipher_States
-    output_message : []u8
-    message_to: []u8
+    output_message: []u8
     message_from: []u8
     recv_error : net.TCP_Recv_Error
     for handshake_status != .Handshake_Complete {
-        message_to, message_from, handshake_status = noise.handshake_initiator_step(&handshakestate, input_message)
+        output_message, message_from, handshake_status = noise.handshake_initiator_step(&handshakestate, input_message)
         send_status := send_length_prefixed(socket, output_message)
         if send_status != .ok {
             return {}, send_status
