@@ -273,7 +273,8 @@ main :: proc() {
         fmt.println("Opened listener...")
         socket, source, status := net.accept_tcp(listener)
 
-        hs, hs_status := noise.handshakestate_initialize(false, nil, nil, nil, nil, nil)
+        hs : noise.Handshake_State
+        hs_status := noise.handshake_init(&hs, false, nil, nil, nil, DEFAULT_PROTOCOL_NAME)
 
         connection_status : ConnectionStatus = .handshake_pending
         connection : Connection
