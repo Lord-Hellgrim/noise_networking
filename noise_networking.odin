@@ -194,7 +194,9 @@ send_data :: proc(connection: ^Connection, data: []u8, ad: []u8 = nil, allocator
     fmt.println(message_len_bytes)
 
     bytes_written, send_status := net.send_tcp(connection.socket, message_len_bytes[:])
+    fmt.println("bytes written: ", bytes_written)
     bytes_written, send_status = net.send_tcp(connection.socket, nonce_bytes[:])
+    fmt.println("bytes written: ", bytes_written)
     bytes_written, send_status = net.send_tcp(connection.socket, message)
     if send_status != .None {
         return .send_error
