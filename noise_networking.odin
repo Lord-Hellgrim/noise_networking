@@ -218,8 +218,11 @@ receive_data :: proc(connection : ^Connection, ad: []u8 = nil) -> ([]u8, u64, Co
 send_length_prefixed :: proc(socket: net.TCP_Socket, message: []u8) -> ConnectionStatus {
     message_len : [8]u8
     endian.put_u64(message_len[:], .Little, u64(len(message)))
+    fmt.println("message_len: ", message_len)
     bytes_written, send_status :=net.send_tcp(socket, message_len[:])
+    fmt.println("bytes written: ", bytes_written)
     bytes_written, send_status = net.send_tcp(socket, message)
+    fmt.println("bytes written: ", bytes_written)
     if send_status != .None {
         return .send_error
     }
@@ -231,7 +234,7 @@ send_length_prefixed :: proc(socket: net.TCP_Socket, message: []u8) -> Connectio
 read_length_prefixed :: proc(socket: net.TCP_Socket, allocator := context.allocator) -> ([]u8, net.TCP_Recv_Error) {
     length : [8]u8
     bytes_received, status := net.recv_tcp(socket, length[:])
-    fmt.println(bytes_received)
+    fmt.println("Bytes received: ", bytes_received)
     if status != .None {
         panic("AAAAAAA")
     }
