@@ -24,7 +24,7 @@ ConnectionStatus :: enum {
     handshakestate_initialization_error,
 }
 
-DEFAULT_PROTOCOL_NAME :: "Noise_XX_25519_AESGCM_SHA256"
+DEFAULT_PROTOCOL_NAME :: "Noise_NN_25519_AESGCM_SHA256"
 
 initiate_connection_all_the_way :: proc(endpoint: net.Endpoint, protocol := DEFAULT_PROTOCOL_NAME, options := net.DEFAULT_TCP_OPTIONS) -> (Connection, ConnectionStatus) {
     connection : Connection
