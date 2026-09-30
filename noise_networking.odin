@@ -5,6 +5,7 @@ import "core:crypto/noise"
 import "core:net"
 import "core:fmt"
 import "core:encoding/endian"
+import "core:time"
 
 
 Connection :: struct {
@@ -220,7 +221,7 @@ send_length_prefixed :: proc(socket: net.TCP_Socket, message: []u8) -> Connectio
     message_len : [8]u8
     endian.put_u64(message_len[:], .Little, u64(len(message)))
     fmt.println("message_len: ", message_len)
-    bytes_written, send_status :=net.send_tcp(socket, message_len[:])
+    bytes_written, send_status := net.send_tcp(socket, message_len[:])
     fmt.println("bytes written: ", bytes_written)
     bytes_written, send_status = net.send_tcp(socket, message)
     fmt.println("bytes written: ", bytes_written)
@@ -246,6 +247,7 @@ read_length_prefixed :: proc(socket: net.TCP_Socket, allocator := context.alloca
     status = .None
     for u64(bytes_received) < len || status != .None {
         bytes_received, status = net.recv_tcp(socket, result[bytes_received:])
+        time.sleep(time.Second)
     }
 
     return result, status
