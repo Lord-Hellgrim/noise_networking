@@ -207,6 +207,8 @@ send_data :: proc(connection: ^Connection, data: []u8, ad: []u8 = nil, allocator
 
 receive_data :: proc(connection : ^Connection, ad: []u8 = nil) -> ([]u8, u64, ConnectionStatus) {
     data, status := read_length_prefixed(connection.socket)
+    fmt.println("Data: ", data)
+    fmt.println(status)
     nonce := u64(from_le_bytes(data[:8]))
     data = data[8:]
     message, noise_status := noise.open_message(&connection.cipherstates, ad, data)
