@@ -161,6 +161,7 @@ establish_connection_step :: proc(handshakestate: ^noise.Handshake_State, socket
         return {}, .recv_error
     }
     message_to, message_from, handshake_status := noise.handshake_responder_step(handshakestate, input_message)
+    fmt.println("Handshake status: ", handshake_status)
     if handshake_status == .Handshake_Complete {
         connection.socket = socket
         cipherstates : noise.Cipher_States
