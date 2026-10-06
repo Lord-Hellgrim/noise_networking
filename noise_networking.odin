@@ -97,8 +97,8 @@ establish_connection_all_the_way :: proc(socket: net.TCP_Socket, peer: net.Endpo
             fmt.println(recv_error)
             return {}, .recv_error
         }
-        message_to, message_from, handshake_status = noise.handshake_responder_step(&handshakestate, input_message)
         fmt.println("HERE!!!")
+        message_to, message_from, handshake_status = noise.handshake_responder_step(&handshakestate, input_message)
         send_status := send_length_prefixed(socket, message_to)
         if send_status != .ok {
             return {}, send_status
