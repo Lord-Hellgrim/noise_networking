@@ -162,6 +162,10 @@ establish_connection_step :: proc(handshakestate: ^noise.Handshake_State, socket
     }
     message_to, message_from, handshake_status := noise.handshake_responder_step(handshakestate, input_message)
     fmt.println("Handshake status: ", handshake_status)
+    send_status := send_length_prefixed(socket, message_to)
+    if send_status != .ok {
+        return {}, send_status
+    }
     if handshake_status == .Handshake_Complete {
         connection.socket = socket
         cipherstates : noise.Cipher_States
@@ -174,11 +178,6 @@ establish_connection_step :: proc(handshakestate: ^noise.Handshake_State, socket
         connection.peer = peer
 
         return connection, .handshake_complete
-    }
-    send_status := send_length_prefixed(socket, message_to)
-    fmt.println("Send Status: ", send_status)
-    if send_status != .ok {
-        return {}, send_status
     } else {
         return {}, .handshake_pending
     }
