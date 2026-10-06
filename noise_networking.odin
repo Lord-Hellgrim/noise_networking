@@ -49,10 +49,12 @@ initiate_connection_all_the_way :: proc(endpoint: net.Endpoint, protocol := DEFA
     recv_error : net.TCP_Recv_Error
     for handshake_status != .Handshake_Complete {
         output_message, message_from, handshake_status = noise.handshake_initiator_step(&handshakestate, input_message)
+        fmt.println(handshake_status)
         send_status := send_length_prefixed(socket, output_message)
         if send_status != .ok {
             return {}, send_status
         }
+        fmt.println("HERE")
         if handshake_status == .Handshake_Complete {
             break
         }
@@ -96,6 +98,7 @@ establish_connection_all_the_way :: proc(socket: net.TCP_Socket, peer: net.Endpo
         }
         message_to, message_from, handshake_status = noise.handshake_responder_step(&handshakestate, input_message)
         send_status := send_length_prefixed(socket, message_to)
+        fmt.println("HERE!!!")
         if send_status != .ok {
             return {}, send_status
         }
