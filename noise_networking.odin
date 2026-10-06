@@ -157,6 +157,7 @@ establish_connection_step :: proc(handshakestate: ^noise.Handshake_State, socket
     }
     fmt.println("message received")
     if recv_error != .None {
+        fmt.println(recv_error)
         return {}, .recv_error
     }
     message_to, message_from, handshake_status := noise.handshake_responder_step(handshakestate, input_message)
@@ -174,6 +175,7 @@ establish_connection_step :: proc(handshakestate: ^noise.Handshake_State, socket
         return connection, .handshake_complete
     }
     send_status := send_length_prefixed(socket, message_to)
+    fmt.println("Send Status: ", send_status)
     if send_status != .ok {
         return {}, send_status
     } else {
