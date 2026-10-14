@@ -50,13 +50,19 @@ initiate_connection_all_the_way :: proc(endpoint: net.Endpoint, protocol := DEFA
     for handshake_status != .Handshake_Complete {
         output_message, message_from, handshake_status = noise.handshake_initiator_step(&handshakestate, input_message)
         fmt.println(handshake_status)
+        fmt.println("HERE")
+        if handshake_status == .Handshake_Complete {
+            if output_message != nil {
+                send_status := send_length_prefixed(socket, output_message)
+                if send_status != .ok {
+                    return {}, send_status
+                }
+            }
+            break
+        }
         send_status := send_length_prefixed(socket, output_message)
         if send_status != .ok {
             return {}, send_status
-        }
-        fmt.println("HERE")
-        if handshake_status == .Handshake_Complete {
-            break
         }
         input_message, recv_error = read_length_prefixed(socket)
         fmt.println("input_message: ", input_message)
