@@ -249,7 +249,7 @@ read_length_prefixed :: proc(socket: net.TCP_Socket, allocator := context.alloca
         panic("AAAAAAA")
     }
     len, _ := endian.get_u64(length[:], .Little)
-
+    fmt.println("Data len: ", len)
     result := make([]u8, len)
     bytes_received  = 0
     status = .None
