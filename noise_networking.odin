@@ -64,7 +64,7 @@ initiate_connection_all_the_way :: proc(endpoint: net.Endpoint, protocol := DEFA
         if send_status != .ok {
             return {}, send_status
         }
-        input_message, recv_error = read_length_prefixed(socket)
+        input_message, recv_error = read_length_prefixed(socket, 0)
         fmt.println("input_message: ", input_message)
         if recv_error != .None {
             return {}, .recv_error
@@ -94,7 +94,7 @@ establish_connection_all_the_way :: proc(socket: net.TCP_Socket, peer: net.Endpo
     message_to : []u8
     message_from : []u8
     for handshake_status != .Handshake_Complete {
-        input_message, recv_error = read_length_prefixed(socket)
+        input_message, recv_error = read_length_prefixed(socket, 0)
         if len(input_message) == 0 {
             panic("nil message read")
         }
@@ -127,7 +127,7 @@ initiate_connection_step :: proc(handshakestate: ^noise.Handshake_State, socket:
     input_message : []u8
     recv_error : net.TCP_Recv_Error
     if handshakestate.current_message != 0 {
-        input_message, recv_error := read_length_prefixed(socket)
+        input_message, recv_error := read_length_prefixed(socket, 0)
         if recv_error != .None {
             return {}, .recv_error
         }
@@ -157,7 +157,7 @@ initiate_connection_step :: proc(handshakestate: ^noise.Handshake_State, socket:
 establish_connection_step :: proc(handshakestate: ^noise.Handshake_State, socket: net.TCP_Socket, peer: net.Endpoint) -> (Connection, ConnectionStatus) {
     connection : Connection
     
-    input_message, recv_error := read_length_prefixed(socket)
+    input_message, recv_error := read_length_prefixed(socket, 0)
     if len(input_message) == 0 {
         return {},.nil_message_read
     }
@@ -217,8 +217,9 @@ send_data :: proc(connection: ^Connection, data: []u8, ad: []u8 = nil, allocator
     return .ok
 }
 
-receive_data :: proc(connection : ^Connection, ad: []u8 = nil) -> ([]u8, u64, ConnectionStatus) {
-    data, status := read_length_prefixed(connection.socket)
+// Returns data and the nonce used to encrypt that particular data packet
+receive_data :: proc(connection : ^Connection, ad: []u8 = nil, expected_len := -1) -> ([]u8, u64, ConnectionStatus) {
+    data, status := read_length_prefixed(connection.socket, expected_len)
     fmt.println("Data: ", data)
     fmt.println(status)
     nonce := u64(from_le_bytes(data[:8]))
@@ -247,7 +248,7 @@ send_length_prefixed :: proc(socket: net.TCP_Socket, message: []u8) -> Connectio
 }
 
 // Strips the length prefix from the data packet
-read_length_prefixed :: proc(socket: net.TCP_Socket, allocator := context.allocator) -> ([]u8, net.TCP_Recv_Error) {
+read_length_prefixed :: proc(socket: net.TCP_Socket, expected_len: int, allocator := context.allocator) -> ([]u8, net.TCP_Recv_Error) {
     length : [8]u8
     bytes_received, status := net.recv_tcp(socket, length[:])
     fmt.println("Bytes received: ", bytes_received)
@@ -255,6 +256,11 @@ read_length_prefixed :: proc(socket: net.TCP_Socket, allocator := context.alloca
         panic("AAAAAAA")
     }
     len, _ := endian.get_u64(length[:], .Little)
+    if int(len) != expected_len {
+        if expected_len > 0 {
+            return nil, .Invalid_Argument
+        }
+    }
     fmt.println("Data len: ", len)
     result := make([]u8, len)
     bytes_received  = 0
