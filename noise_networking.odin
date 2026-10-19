@@ -218,8 +218,8 @@ send_data :: proc(connection: ^Connection, data: []u8, ad: []u8 = nil, allocator
 }
 
 // Returns data and the nonce used to encrypt that particular data packet
-receive_data :: proc(connection : ^Connection, ad: []u8 = nil, expected_len := -1) -> ([]u8, u64, ConnectionStatus) {
-    data, status := read_length_prefixed(connection.socket, expected_len)
+receive_data :: proc(connection : ^Connection, ad: []u8 = nil, expected_len := -1, allocator := context.allocator) -> ([]u8, u64, ConnectionStatus) {
+    data, status := read_length_prefixed(connection.socket, expected_len, allocator = allocator)
     fmt.println("Data: ", data)
     fmt.println(status)
     nonce := u64(from_le_bytes(data[:8]))
