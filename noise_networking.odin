@@ -218,13 +218,19 @@ send_data :: proc(connection: ^Connection, data: []u8, ad: []u8 = nil, allocator
 }
 
 // Returns data and the nonce used to encrypt that particular data packet
-receive_data :: proc(connection : ^Connection, ad: []u8 = nil, expected_len := -1, allocator := context.allocator) -> ([]u8, u64, ConnectionStatus) {
-    data, status := read_length_prefixed(connection.socket, expected_len, allocator = allocator)
+receive_data :: proc(connection : ^Connection, ad: []u8 = nil, expected_len := -1, dst: []u8 = nil, allocator := context.allocator) -> ([]u8, u64, ConnectionStatus) {
+    data, status := read_length_prefixed(connection.socket, expected_len, dst = dst, allocator = allocator)
+    if data == nil && dst != nil {
+        data = dst
+    }
     fmt.println("Data: ", data)
     fmt.println(status)
     nonce := u64(from_le_bytes(data[:8]))
     data = data[8:]
-    message, noise_status := noise.open_message(&connection.cipherstates, ad, data)
+    message, noise_status := noise.open_message(&connection.cipherstates, ad, data, dst = data)
+    if message == nil && dst != nil {
+        message = dst
+    }
     if noise_status != .Ok {
         return nil, nonce, .recv_error
     }
@@ -248,24 +254,30 @@ send_length_prefixed :: proc(socket: net.TCP_Socket, message: []u8) -> Connectio
 }
 
 // Strips the length prefix from the data packet
-read_length_prefixed :: proc(socket: net.TCP_Socket, expected_len: int, allocator := context.allocator) -> ([]u8, net.TCP_Recv_Error) {
+read_length_prefixed :: proc(socket: net.TCP_Socket, expected_len: int, dst: []u8 = nil, allocator := context.allocator) -> ([]u8, net.TCP_Recv_Error) {
     length : [8]u8
     bytes_received, status := net.recv_tcp(socket, length[:])
     fmt.println("Bytes received: ", bytes_received)
     if status != .None {
         panic("AAAAAAA")
     }
-    len, _ := endian.get_u64(length[:], .Little)
-    if int(len) != expected_len {
+    data_len, _ := endian.get_u64(length[:], .Little)
+    if int(data_len) != expected_len {
         if expected_len > 0 {
             return nil, .Invalid_Argument
         }
     }
-    fmt.println("Data len: ", len)
-    result := make([]u8, len)
+    fmt.println("Data len: ", data_len)
+    result: []u8
+    if dst == nil {
+        result = make([]u8, data_len)
+    } else {
+        assert(len(dst) > int(data_len))
+        result = dst
+    }
     bytes_received  = 0
     status = .None
-    for u64(bytes_received) < len || status != .None {
+    for u64(bytes_received) < data_len || status != .None {
         bytes_received, status = net.recv_tcp(socket, result[bytes_received:])
         time.sleep(time.Second)
     }
